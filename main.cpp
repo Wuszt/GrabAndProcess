@@ -228,9 +228,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
     }
 
     // Create window
-    RECT WindowRect = {0, 0, 800, 600};
+    RECT WindowRect = {0, 0, 1920, 1080};
     AdjustWindowRect(&WindowRect, WS_OVERLAPPEDWINDOW, FALSE);
-    WindowHandle = CreateWindowW(L"ddasample", L"DXGI desktop duplication sample",
+    WindowHandle = CreateWindowW(L"ddasample", L"Grab&Process",
                            WS_OVERLAPPEDWINDOW,
                            0, 0,
                            WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top,

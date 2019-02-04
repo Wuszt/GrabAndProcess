@@ -19,7 +19,6 @@ OUTPUTMANAGER::OUTPUTMANAGER() : m_SwapChain(nullptr),
                                  m_SamplerLinear(nullptr),
                                  m_BlendState(nullptr),
                                  m_VertexShader(nullptr),
-                                 m_PixelShader(nullptr),
                                  m_InputLayout(nullptr),
                                  m_SharedSurf(nullptr),
                                  m_KeyMutex(nullptr),
@@ -168,6 +167,24 @@ DUPL_RETURN OUTPUTMANAGER::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
         return Return;
     }
 
+    Return = InitializeMultipassResources(DeskBounds, &m_multipass0Texture, &m_multipass0TargetView);
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
+    Return = InitializeMultipassResources(DeskBounds, &m_multipass1Texture, &m_multipass1TargetView);
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
+    Return = InitializeMultipassResources(DeskBounds, &m_multipass2Texture, &m_multipass2TargetView);
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
     // Set view port
     SetViewPort(Width, Height);
 
@@ -205,8 +222,20 @@ DUPL_RETURN OUTPUTMANAGER::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
         return ProcessFailure(m_Device, L"Failed to create blend state in OUTPUTMANAGER", L"Error", hr, SystemTransitionsExpectedErrors);
     }
 
-    // Initialize shaders
-    Return = InitShaders();
+    // Initialize vertex shaders
+    Return = InitVertexShaders();
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
+    Return = InitInputLayout();
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
+    Return = InitPixelShaders();
     if (Return != DUPL_RETURN_SUCCESS)
     {
         return Return;
@@ -432,14 +461,46 @@ HANDLE OUTPUTMANAGER::GetSharedHandle()
     return Hnd;
 }
 
+DUPL_RETURN OUTPUTMANAGER::DrawPass(std::string ppName, int mipLevels, ID3D11Texture2D* sourceTex1, ID3D11Texture2D* sourceTex2, ID3D11RenderTargetView* targetView, DXGI_FORMAT format)
+{
+    m_DeviceContext->OMSetRenderTargets(1, &targetView, nullptr);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC shDesc;
+    shDesc.Format = format;
+    shDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    shDesc.Texture2D.MostDetailedMip = mipLevels - 1;
+    shDesc.Texture2D.MipLevels = mipLevels;
+
+    ID3D11ShaderResourceView* rv1 = nullptr;
+    HRESULT hr = m_Device->CreateShaderResourceView(sourceTex1, &shDesc, &rv1);
+    if (FAILED(hr))
+    {
+        return ProcessFailure(m_Device, L"Failed to create shader resource when drawing a frame", L"Error", hr, SystemTransitionsExpectedErrors);
+    }
+
+    ID3D11ShaderResourceView* rv2 = nullptr;
+    hr = m_Device->CreateShaderResourceView(sourceTex2, &shDesc, &rv2);
+    if (FAILED(hr))
+    {
+        return ProcessFailure(m_Device, L"Failed to create shader resource when drawing a frame", L"Error", hr, SystemTransitionsExpectedErrors);
+    }
+    
+    m_DeviceContext->PSSetShaderResources(0, 1, &rv1);
+    m_DeviceContext->PSSetShaderResources(1, 1, &rv2);
+
+    m_DeviceContext->PSSetShader(m_PixelShaders.at(ppName), nullptr, 0);
+
+    m_DeviceContext->Draw(NUMVERTICES, 0);
+
+    return DUPL_RETURN_SUCCESS;
+}
+
 //
 // Draw frame into backbuffer
 //
 DUPL_RETURN OUTPUTMANAGER::DrawFrame()
 {
     HRESULT hr;
-
-    InitShaders();
 
     // If window was resized, resize swapchain
     if (m_NeedsResize)
@@ -466,29 +527,13 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
     D3D11_TEXTURE2D_DESC FrameDesc;
     m_SharedSurf->GetDesc(&FrameDesc);
 
-    D3D11_SHADER_RESOURCE_VIEW_DESC ShaderDesc;
-    ShaderDesc.Format = FrameDesc.Format;
-    ShaderDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    ShaderDesc.Texture2D.MostDetailedMip = FrameDesc.MipLevels - 1;
-    ShaderDesc.Texture2D.MipLevels = FrameDesc.MipLevels;
-
-    // Create new shader resource view
-    ID3D11ShaderResourceView* ShaderResource = nullptr;
-    hr = m_Device->CreateShaderResourceView(m_SharedSurf, &ShaderDesc, &ShaderResource);
-    if (FAILED(hr))
-    {
-        return ProcessFailure(m_Device, L"Failed to create shader resource when drawing a frame", L"Error", hr, SystemTransitionsExpectedErrors);
-    }
-
     // Set resources
     UINT Stride = sizeof(VERTEX);
     UINT Offset = 0;
     FLOAT blendFactor[4] = {0.f, 0.f, 0.f, 0.f};
     m_DeviceContext->OMSetBlendState(nullptr, blendFactor, 0xffffffff);
-    m_DeviceContext->OMSetRenderTargets(1, &m_RTV, nullptr);
+
     m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
-    m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
-    m_DeviceContext->PSSetShaderResources(0, 1, &ShaderResource);
     m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
     m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -508,24 +553,21 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
     hr = m_Device->CreateBuffer(&BufferDesc, &InitData, &VertexBuffer);
     if (FAILED(hr))
     {
-        ShaderResource->Release();
-        ShaderResource = nullptr;
         return ProcessFailure(m_Device, L"Failed to create vertex buffer when drawing a frame", L"Error", hr, SystemTransitionsExpectedErrors);
     }
     m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
 
-    // Draw textured quad onto render target
-    m_DeviceContext->Draw(NUMVERTICES, 0);
+    DrawPass("Desaturation", FrameDesc.MipLevels, m_SharedSurf, m_SharedSurf, m_multipass0TargetView, FrameDesc.Format);
+  //  DrawPass("Desaturation", FrameDesc.MipLevels, m_multipass0Texture, m_multipass1TargetView, FrameDesc.Format);
+    //DrawPass("SimplifyColors", FrameDesc.MipLevels, m_SharedSurf, m_multipass0TargetView, FrameDesc.Format);
+    DrawPass("Dummy", FrameDesc.MipLevels, m_SharedSurf, m_multipass0Texture, m_RTV, FrameDesc.Format);
 
     VertexBuffer->Release();
     VertexBuffer = nullptr;
 
-    // Release shader resource
-    ShaderResource->Release();
-    ShaderResource = nullptr;
-
     return DUPL_RETURN_SUCCESS;
 }
+
 
 //
 // Process both masked and monochrome pointers
@@ -715,190 +757,223 @@ DUPL_RETURN OUTPUTMANAGER::ProcessMonoMask(bool IsMono, _Inout_ PTR_INFO* PtrInf
 //
 // Draw mouse provided in buffer to backbuffer
 //
-DUPL_RETURN OUTPUTMANAGER::DrawMouse(_In_ PTR_INFO* PtrInfo)
+//DUPL_RETURN OUTPUTMANAGER::DrawMouse(_In_ PTR_INFO* PtrInfo)
+//{
+//    // Vars to be used
+//    ID3D11Texture2D* MouseTex = nullptr;
+//    ID3D11ShaderResourceView* ShaderRes = nullptr;
+//    ID3D11Buffer* VertexBufferMouse = nullptr;
+//    D3D11_SUBRESOURCE_DATA InitData;
+//    D3D11_TEXTURE2D_DESC Desc;
+//    D3D11_SHADER_RESOURCE_VIEW_DESC SDesc;
+//
+//    // Position will be changed based on mouse position
+//    VERTEX Vertices[NUMVERTICES] =
+//    {
+//        {XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f)},
+//        {XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f)},
+//        {XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f)},
+//        {XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f)},
+//        {XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f)},
+//        {XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f)},
+//    };
+//
+//    D3D11_TEXTURE2D_DESC FullDesc;
+//    m_SharedSurf->GetDesc(&FullDesc);
+//    INT DesktopWidth = FullDesc.Width;
+//    INT DesktopHeight = FullDesc.Height;
+//
+//    // Center of desktop dimensions
+//    INT CenterX = (DesktopWidth / 2);
+//    INT CenterY = (DesktopHeight / 2);
+//
+//    // Clipping adjusted coordinates / dimensions
+//    INT PtrWidth = 0;
+//    INT PtrHeight = 0;
+//    INT PtrLeft = 0;
+//    INT PtrTop = 0;
+//
+//    // Buffer used if necessary (in case of monochrome or masked pointer)
+//    BYTE* InitBuffer = nullptr;
+//
+//    // Used for copying pixels
+//    D3D11_BOX Box;
+//    Box.front = 0;
+//    Box.back = 1;
+//
+//    Desc.MipLevels = 1;
+//    Desc.ArraySize = 1;
+//    Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+//    Desc.SampleDesc.Count = 1;
+//    Desc.SampleDesc.Quality = 0;
+//    Desc.Usage = D3D11_USAGE_DEFAULT;
+//    Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+//    Desc.CPUAccessFlags = 0;
+//    Desc.MiscFlags = 0;
+//
+//    // Set shader resource properties
+//    SDesc.Format = Desc.Format;
+//    SDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+//    SDesc.Texture2D.MostDetailedMip = Desc.MipLevels - 1;
+//    SDesc.Texture2D.MipLevels = Desc.MipLevels;
+//
+//    switch (PtrInfo->ShapeInfo.Type)
+//    {
+//        case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
+//        {
+//            PtrLeft = PtrInfo->Position.x;
+//            PtrTop = PtrInfo->Position.y;
+//
+//            PtrWidth = static_cast<INT>(PtrInfo->ShapeInfo.Width);
+//            PtrHeight = static_cast<INT>(PtrInfo->ShapeInfo.Height);
+//
+//            break;
+//        }
+//
+//        case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
+//        {
+//            ProcessMonoMask(true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+//            break;
+//        }
+//
+//        case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
+//        {
+//            ProcessMonoMask(false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+//            break;
+//        }
+//
+//        default:
+//            break;
+//    }
+//
+//    // VERTEX creation
+//    Vertices[0].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+//    Vertices[0].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+//    Vertices[1].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+//    Vertices[1].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+//    Vertices[2].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+//    Vertices[2].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+//    Vertices[3].Pos.x = Vertices[2].Pos.x;
+//    Vertices[3].Pos.y = Vertices[2].Pos.y;
+//    Vertices[4].Pos.x = Vertices[1].Pos.x;
+//    Vertices[4].Pos.y = Vertices[1].Pos.y;
+//    Vertices[5].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+//    Vertices[5].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+//
+//    // Set texture properties
+//    Desc.Width = PtrWidth;
+//    Desc.Height = PtrHeight;
+//
+//    // Set up init data
+//    InitData.pSysMem = (PtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? PtrInfo->PtrShapeBuffer : InitBuffer;
+//    InitData.SysMemPitch = (PtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? PtrInfo->ShapeInfo.Pitch : PtrWidth * BPP;
+//    InitData.SysMemSlicePitch = 0;
+//
+//    // Create mouseshape as texture
+//    HRESULT hr = m_Device->CreateTexture2D(&Desc, &InitData, &MouseTex);
+//    if (FAILED(hr))
+//    {
+//        return ProcessFailure(m_Device, L"Failed to create mouse pointer texture", L"Error", hr, SystemTransitionsExpectedErrors);
+//    }
+//
+//    // Create shader resource from texture
+//    hr = m_Device->CreateShaderResourceView(MouseTex, &SDesc, &ShaderRes);
+//    if (FAILED(hr))
+//    {
+//        MouseTex->Release();
+//        MouseTex = nullptr;
+//        return ProcessFailure(m_Device, L"Failed to create shader resource from mouse pointer texture", L"Error", hr, SystemTransitionsExpectedErrors);
+//    }
+//
+//    D3D11_BUFFER_DESC BDesc;
+//    ZeroMemory(&BDesc, sizeof(D3D11_BUFFER_DESC));
+//    BDesc.Usage = D3D11_USAGE_DEFAULT;
+//    BDesc.ByteWidth = sizeof(VERTEX) * NUMVERTICES;
+//    BDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+//    BDesc.CPUAccessFlags = 0;
+//
+//    ZeroMemory(&InitData, sizeof(D3D11_SUBRESOURCE_DATA));
+//    InitData.pSysMem = Vertices;
+//
+//    // Create vertex buffer
+//    hr = m_Device->CreateBuffer(&BDesc, &InitData, &VertexBufferMouse);
+//    if (FAILED(hr))
+//    {
+//        ShaderRes->Release();
+//        ShaderRes = nullptr;
+//        MouseTex->Release();
+//        MouseTex = nullptr;
+//        return ProcessFailure(m_Device, L"Failed to create mouse pointer vertex buffer in OutputManager", L"Error", hr, SystemTransitionsExpectedErrors);
+//    }
+//
+//    // Set resources
+//    FLOAT BlendFactor[4] = {0.f, 0.f, 0.f, 0.f};
+//    UINT Stride = sizeof(VERTEX);
+//    UINT Offset = 0;
+//    m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBufferMouse, &Stride, &Offset);
+//    m_DeviceContext->OMSetBlendState(m_BlendState, BlendFactor, 0xFFFFFFFF);
+//    m_DeviceContext->OMSetRenderTargets(1, &m_RTV, nullptr);
+//    m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
+//    m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
+//    m_DeviceContext->PSSetShaderResources(0, 1, &ShaderRes);
+//    m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
+//
+//    // Draw
+//    m_DeviceContext->Draw(NUMVERTICES, 0);
+//
+//    // Clean
+//    if (VertexBufferMouse)
+//    {
+//        VertexBufferMouse->Release();
+//        VertexBufferMouse = nullptr;
+//    }
+//    if (ShaderRes)
+//    {
+//        ShaderRes->Release();
+//        ShaderRes = nullptr;
+//    }
+//    if (MouseTex)
+//    {
+//        MouseTex->Release();
+//        MouseTex = nullptr;
+//    }
+//    if (InitBuffer)
+//    {
+//        delete [] InitBuffer;
+//        InitBuffer = nullptr;
+//    }
+//
+//    return DUPL_RETURN_SUCCESS;
+//}
+
+DUPL_RETURN OUTPUTMANAGER::InitPixelShaders()
 {
-    // Vars to be used
-    ID3D11Texture2D* MouseTex = nullptr;
-    ID3D11ShaderResourceView* ShaderRes = nullptr;
-    ID3D11Buffer* VertexBufferMouse = nullptr;
-    D3D11_SUBRESOURCE_DATA InitData;
-    D3D11_TEXTURE2D_DESC Desc;
-    D3D11_SHADER_RESOURCE_VIEW_DESC SDesc;
+    CleanPixelShaders();
 
-    // Position will be changed based on mouse position
-    VERTEX Vertices[NUMVERTICES] =
+    for (auto entry = c_pixelShaders.begin(); entry != c_pixelShaders.end(); ++entry)
     {
-        {XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f)},
-        {XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f)},
-        {XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f)},
-        {XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f)},
-        {XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f)},
-        {XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f)},
-    };
 
-    D3D11_TEXTURE2D_DESC FullDesc;
-    m_SharedSurf->GetDesc(&FullDesc);
-    INT DesktopWidth = FullDesc.Width;
-    INT DesktopHeight = FullDesc.Height;
+        ID3D10Blob* error;
+        ID3D10Blob* pixelShaderBuffer;
+        LPCWSTR path = entry->second.c_str();
 
-    // Center of desktop dimensions
-    INT CenterX = (DesktopWidth / 2);
-    INT CenterY = (DesktopHeight / 2);
+        auto ds = D3DCompileFromFile(path, NULL, NULL, "PS", "ps_5_0", D3D10_SHADER_ENABLE_STRICTNESS | D3D10_SHADER_DEBUG, 0, &pixelShaderBuffer, &error);
 
-    // Clipping adjusted coordinates / dimensions
-    INT PtrWidth = 0;
-    INT PtrHeight = 0;
-    INT PtrLeft = 0;
-    INT PtrTop = 0;
-
-    // Buffer used if necessary (in case of monochrome or masked pointer)
-    BYTE* InitBuffer = nullptr;
-
-    // Used for copying pixels
-    D3D11_BOX Box;
-    Box.front = 0;
-    Box.back = 1;
-
-    Desc.MipLevels = 1;
-    Desc.ArraySize = 1;
-    Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    Desc.SampleDesc.Count = 1;
-    Desc.SampleDesc.Quality = 0;
-    Desc.Usage = D3D11_USAGE_DEFAULT;
-    Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    Desc.CPUAccessFlags = 0;
-    Desc.MiscFlags = 0;
-
-    // Set shader resource properties
-    SDesc.Format = Desc.Format;
-    SDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    SDesc.Texture2D.MostDetailedMip = Desc.MipLevels - 1;
-    SDesc.Texture2D.MipLevels = Desc.MipLevels;
-
-    switch (PtrInfo->ShapeInfo.Type)
-    {
-        case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
+        if (FAILED(ds))
         {
-            PtrLeft = PtrInfo->Position.x;
-            PtrTop = PtrInfo->Position.y;
-
-            PtrWidth = static_cast<INT>(PtrInfo->ShapeInfo.Width);
-            PtrHeight = static_cast<INT>(PtrInfo->ShapeInfo.Height);
-
-            break;
+            std::cout << "Error while compiling: " << entry->first << std::endl;
+            continue;
         }
 
-        case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
+        ID3D11PixelShader* tmpShader;
+
+        HRESULT hr = m_Device->CreatePixelShader(pixelShaderBuffer->GetBufferPointer(), pixelShaderBuffer->GetBufferSize(), nullptr, &tmpShader);
+        if (FAILED(hr))
         {
-            ProcessMonoMask(true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
-            break;
+            return ProcessFailure(m_Device, L"Failed to create pixel shader in OUTPUTMANAGER", L"Error", hr, SystemTransitionsExpectedErrors);
         }
-
-        case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
-        {
-            ProcessMonoMask(false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
-            break;
-        }
-
-        default:
-            break;
-    }
-
-    // VERTEX creation
-    Vertices[0].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
-    Vertices[0].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
-    Vertices[1].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
-    Vertices[1].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
-    Vertices[2].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
-    Vertices[2].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
-    Vertices[3].Pos.x = Vertices[2].Pos.x;
-    Vertices[3].Pos.y = Vertices[2].Pos.y;
-    Vertices[4].Pos.x = Vertices[1].Pos.x;
-    Vertices[4].Pos.y = Vertices[1].Pos.y;
-    Vertices[5].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
-    Vertices[5].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
-
-    // Set texture properties
-    Desc.Width = PtrWidth;
-    Desc.Height = PtrHeight;
-
-    // Set up init data
-    InitData.pSysMem = (PtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? PtrInfo->PtrShapeBuffer : InitBuffer;
-    InitData.SysMemPitch = (PtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? PtrInfo->ShapeInfo.Pitch : PtrWidth * BPP;
-    InitData.SysMemSlicePitch = 0;
-
-    // Create mouseshape as texture
-    HRESULT hr = m_Device->CreateTexture2D(&Desc, &InitData, &MouseTex);
-    if (FAILED(hr))
-    {
-        return ProcessFailure(m_Device, L"Failed to create mouse pointer texture", L"Error", hr, SystemTransitionsExpectedErrors);
-    }
-
-    // Create shader resource from texture
-    hr = m_Device->CreateShaderResourceView(MouseTex, &SDesc, &ShaderRes);
-    if (FAILED(hr))
-    {
-        MouseTex->Release();
-        MouseTex = nullptr;
-        return ProcessFailure(m_Device, L"Failed to create shader resource from mouse pointer texture", L"Error", hr, SystemTransitionsExpectedErrors);
-    }
-
-    D3D11_BUFFER_DESC BDesc;
-    ZeroMemory(&BDesc, sizeof(D3D11_BUFFER_DESC));
-    BDesc.Usage = D3D11_USAGE_DEFAULT;
-    BDesc.ByteWidth = sizeof(VERTEX) * NUMVERTICES;
-    BDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    BDesc.CPUAccessFlags = 0;
-
-    ZeroMemory(&InitData, sizeof(D3D11_SUBRESOURCE_DATA));
-    InitData.pSysMem = Vertices;
-
-    // Create vertex buffer
-    hr = m_Device->CreateBuffer(&BDesc, &InitData, &VertexBufferMouse);
-    if (FAILED(hr))
-    {
-        ShaderRes->Release();
-        ShaderRes = nullptr;
-        MouseTex->Release();
-        MouseTex = nullptr;
-        return ProcessFailure(m_Device, L"Failed to create mouse pointer vertex buffer in OutputManager", L"Error", hr, SystemTransitionsExpectedErrors);
-    }
-
-    // Set resources
-    FLOAT BlendFactor[4] = {0.f, 0.f, 0.f, 0.f};
-    UINT Stride = sizeof(VERTEX);
-    UINT Offset = 0;
-    m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBufferMouse, &Stride, &Offset);
-    m_DeviceContext->OMSetBlendState(m_BlendState, BlendFactor, 0xFFFFFFFF);
-    m_DeviceContext->OMSetRenderTargets(1, &m_RTV, nullptr);
-    m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
-    m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
-    m_DeviceContext->PSSetShaderResources(0, 1, &ShaderRes);
-    m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
-
-    // Draw
-    m_DeviceContext->Draw(NUMVERTICES, 0);
-
-    // Clean
-    if (VertexBufferMouse)
-    {
-        VertexBufferMouse->Release();
-        VertexBufferMouse = nullptr;
-    }
-    if (ShaderRes)
-    {
-        ShaderRes->Release();
-        ShaderRes = nullptr;
-    }
-    if (MouseTex)
-    {
-        MouseTex->Release();
-        MouseTex = nullptr;
-    }
-    if (InitBuffer)
-    {
-        delete [] InitBuffer;
-        InitBuffer = nullptr;
+        else
+            m_PixelShaders.insert({ entry->first, tmpShader });
     }
 
     return DUPL_RETURN_SUCCESS;
@@ -907,18 +982,12 @@ DUPL_RETURN OUTPUTMANAGER::DrawMouse(_In_ PTR_INFO* PtrInfo)
 //
 // Initialize shaders for drawing to screen
 //
-DUPL_RETURN OUTPUTMANAGER::InitShaders()
+DUPL_RETURN OUTPUTMANAGER::InitVertexShaders()
 {
     if (m_VertexShader)
     {
         m_VertexShader->Release();
         m_VertexShader = nullptr;
-    }
-
-    if (m_PixelShader)
-    {
-        m_PixelShader->Release();
-        m_PixelShader = nullptr;
     }
 
     HRESULT hr;
@@ -930,35 +999,24 @@ DUPL_RETURN OUTPUTMANAGER::InitShaders()
         return ProcessFailure(m_Device, L"Failed to create vertex shader in OUTPUTMANAGER", L"Error", hr, SystemTransitionsExpectedErrors);
     }
 
+    return DUPL_RETURN_SUCCESS;
+}
+
+DUPL_RETURN OUTPUTMANAGER::InitInputLayout()
+{
     D3D11_INPUT_ELEMENT_DESC Layout[] =
     {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };
     UINT NumElements = ARRAYSIZE(Layout);
-    hr = m_Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &m_InputLayout);
+    UINT Size = ARRAYSIZE(g_VS);
+    HRESULT hr = m_Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &m_InputLayout);
     if (FAILED(hr))
     {
         return ProcessFailure(m_Device, L"Failed to create input layout in OUTPUTMANAGER", L"Error", hr, SystemTransitionsExpectedErrors);
     }
     m_DeviceContext->IASetInputLayout(m_InputLayout);
-
-    ID3D10Blob* error;
-    ID3D10Blob* pixelShaderBuffer;
-    auto ds = D3DCompileFromFile(L"PixelShader.hlsl", NULL, NULL, "PS", "ps_5_0", D3D10_SHADER_ENABLE_STRICTNESS | D3D10_SHADER_DEBUG, 0, &pixelShaderBuffer, &error);
-    
-    if (FAILED(ds))
-    {
-        std::cout << "Error!" << std::endl;
-        return DUPL_RETURN_SUCCESS;
-    }
-    
-    Size = ARRAYSIZE(g_PS);
-    hr = m_Device->CreatePixelShader(pixelShaderBuffer->GetBufferPointer(), pixelShaderBuffer->GetBufferSize(), nullptr, &m_PixelShader);
-    if (FAILED(hr))
-    {
-        return ProcessFailure(m_Device, L"Failed to create pixel shader in OUTPUTMANAGER", L"Error", hr, SystemTransitionsExpectedErrors);
-    }
 
     return DUPL_RETURN_SUCCESS;
 }
@@ -1043,6 +1101,45 @@ DUPL_RETURN OUTPUTMANAGER::ResizeSwapChain()
     return Ret;
 }
 
+DUPL_RETURN OUTPUTMANAGER::InitializeMultipassResources(RECT* DeskBounds, ID3D11Texture2D** tex, ID3D11RenderTargetView** targetView)
+{
+    D3D11_TEXTURE2D_DESC textureDesc;
+    D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
+    D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc;
+
+    ZeroMemory(&textureDesc, sizeof(textureDesc));
+
+    textureDesc.Width = DeskBounds->right - DeskBounds->left;
+    textureDesc.Height = 1017;//DeskBounds->bottom - DeskBounds->top;
+    textureDesc.MipLevels = 1;
+    textureDesc.ArraySize = 1;
+    textureDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    textureDesc.CPUAccessFlags = 0;
+    textureDesc.MiscFlags = 0;
+
+    m_Device->CreateTexture2D(&textureDesc, nullptr, tex);
+
+    renderTargetViewDesc.Format = textureDesc.Format;
+    renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    renderTargetViewDesc.Texture2D.MipSlice = 0;
+
+    m_Device->CreateRenderTargetView(*tex, &renderTargetViewDesc, targetView);
+
+    return DUPL_RETURN();
+}
+
+void OUTPUTMANAGER::CleanPixelShaders()
+{
+    for (auto pixelShader = m_PixelShaders.begin(); pixelShader != m_PixelShaders.end(); ++pixelShader)
+    {
+        pixelShader->second->Release();
+    }
+
+    m_PixelShaders.clear();
+}
+
 //
 // Releases all references
 //
@@ -1054,11 +1151,7 @@ void OUTPUTMANAGER::CleanRefs()
         m_VertexShader = nullptr;
     }
 
-    if (m_PixelShader)
-    {
-        m_PixelShader->Release();
-        m_PixelShader = nullptr;
-    }
+    CleanPixelShaders();
 
     if (m_InputLayout)
     {

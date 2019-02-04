@@ -21,10 +21,12 @@
 #include <warning.h>
 #include <DirectXMath.h>
 #include <iostream>
+#include <unordered_map>
 
 
-#include "PixelShader.h"
+#include "DummyPP.h"
 #include "VertexShader.h"
+#include <string>
 
 #define NUMVERTICES 6
 #define BPP         4
@@ -36,6 +38,15 @@ extern HRESULT CreateDuplicationExpectedErrors[];
 extern HRESULT FrameInfoExpectedErrors[];
 extern HRESULT AcquireFrameExpectedError[];
 extern HRESULT EnumOutputsExpectedErrors[];
+
+const std::unordered_map<std::string, std::wstring> c_pixelShaders
+{
+    {"Blur",L"GaussianBlurPP.hlsl"},
+    {"Desaturation", L"DesaturationPP.hlsl" },
+    {"Dummy", L"DummyPP.hlsl"},
+    {"Sobel", L"SobelPP.hlsl"},
+    {"SimplifyColors", L"SimplifyColorsPP.hlsl"}
+};
 
 typedef _Return_type_success_(return == DUPL_RETURN_SUCCESS) enum
 {
