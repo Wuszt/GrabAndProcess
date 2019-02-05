@@ -26,7 +26,7 @@ class OUTPUTMANAGER
         DUPL_RETURN UpdateApplicationWindow(_In_ PTR_INFO* PointerInfo, _Inout_ bool* Occluded);
         void CleanRefs();
         HANDLE GetSharedHandle();
-        DUPL_RETURN DrawPass(std::string ppName, int mipLevels, ID3D11Texture2D * sourceTex1, ID3D11Texture2D * sourceTex2, ID3D11RenderTargetView * targetView, DXGI_FORMAT format);
+        DUPL_RETURN DrawPass(std::string ppName, std::vector<ID3D11Texture2D*> textures, ID3D11RenderTargetView * targetView);
         void WindowResize();
 
     private:

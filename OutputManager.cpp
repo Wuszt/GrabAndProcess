@@ -12,19 +12,19 @@ using namespace DirectX;
 // Constructor NULLs out all pointers & sets appropriate var vals
 //
 OUTPUTMANAGER::OUTPUTMANAGER() : m_SwapChain(nullptr),
-                                 m_Device(nullptr),
-                                 m_Factory(nullptr),
-                                 m_DeviceContext(nullptr),
-                                 m_RTV(nullptr),
-                                 m_SamplerLinear(nullptr),
-                                 m_BlendState(nullptr),
-                                 m_VertexShader(nullptr),
-                                 m_InputLayout(nullptr),
-                                 m_SharedSurf(nullptr),
-                                 m_KeyMutex(nullptr),
-                                 m_WindowHandle(nullptr),
-                                 m_NeedsResize(false),
-                                 m_OcclusionCookie(0)
+m_Device(nullptr),
+m_Factory(nullptr),
+m_DeviceContext(nullptr),
+m_RTV(nullptr),
+m_SamplerLinear(nullptr),
+m_BlendState(nullptr),
+m_VertexShader(nullptr),
+m_InputLayout(nullptr),
+m_SharedSurf(nullptr),
+m_KeyMutex(nullptr),
+m_WindowHandle(nullptr),
+m_NeedsResize(false),
+m_OcclusionCookie(0)
 {
 }
 
@@ -78,7 +78,7 @@ DUPL_RETURN OUTPUTMANAGER::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
     for (UINT DriverTypeIndex = 0; DriverTypeIndex < NumDriverTypes; ++DriverTypeIndex)
     {
         hr = D3D11CreateDevice(nullptr, DriverTypes[DriverTypeIndex], nullptr, 0, FeatureLevels, NumFeatureLevels,
-        D3D11_SDK_VERSION, &m_Device, &FeatureLevel, &m_DeviceContext);
+            D3D11_SDK_VERSION, &m_Device, &FeatureLevel, &m_DeviceContext);
         if (SUCCEEDED(hr))
         {
             // Device creation succeeded, no need to loop anymore
@@ -461,36 +461,40 @@ HANDLE OUTPUTMANAGER::GetSharedHandle()
     return Hnd;
 }
 
-DUPL_RETURN OUTPUTMANAGER::DrawPass(std::string ppName, int mipLevels, ID3D11Texture2D* sourceTex1, ID3D11Texture2D* sourceTex2, ID3D11RenderTargetView* targetView, DXGI_FORMAT format)
+DUPL_RETURN OUTPUTMANAGER::DrawPass(std::string ppName, std::vector<ID3D11Texture2D*> textures, ID3D11RenderTargetView* targetView)
 {
     m_DeviceContext->OMSetRenderTargets(1, &targetView, nullptr);
 
     D3D11_SHADER_RESOURCE_VIEW_DESC shDesc;
-    shDesc.Format = format;
+    shDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     shDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    shDesc.Texture2D.MostDetailedMip = mipLevels - 1;
-    shDesc.Texture2D.MipLevels = mipLevels;
+    shDesc.Texture2D.MostDetailedMip = 0;
+    shDesc.Texture2D.MipLevels = 1;
 
-    ID3D11ShaderResourceView* rv1 = nullptr;
-    HRESULT hr = m_Device->CreateShaderResourceView(sourceTex1, &shDesc, &rv1);
-    if (FAILED(hr))
-    {
-        return ProcessFailure(m_Device, L"Failed to create shader resource when drawing a frame", L"Error", hr, SystemTransitionsExpectedErrors);
-    }
+    std::vector<ID3D11ShaderResourceView*> resources;
 
-    ID3D11ShaderResourceView* rv2 = nullptr;
-    hr = m_Device->CreateShaderResourceView(sourceTex2, &shDesc, &rv2);
-    if (FAILED(hr))
+    for (int i = 0; i < textures.size(); ++i)
     {
-        return ProcessFailure(m_Device, L"Failed to create shader resource when drawing a frame", L"Error", hr, SystemTransitionsExpectedErrors);
+        ID3D11ShaderResourceView* rv = nullptr;
+        HRESULT hr = m_Device->CreateShaderResourceView(textures[i], &shDesc, &rv);
+        if (FAILED(hr))
+        {
+            return ProcessFailure(m_Device, L"Failed to create shader resource when drawing a frame", L"Error", hr, SystemTransitionsExpectedErrors);
+        }
+
+        resources.push_back(rv);
+
+        m_DeviceContext->PSSetShaderResources(i, 1, &rv);
     }
-    
-    m_DeviceContext->PSSetShaderResources(0, 1, &rv1);
-    m_DeviceContext->PSSetShaderResources(1, 1, &rv2);
 
     m_DeviceContext->PSSetShader(m_PixelShaders.at(ppName), nullptr, 0);
 
     m_DeviceContext->Draw(NUMVERTICES, 0);
+
+    for (int i = 0; i < textures.size(); ++i)
+    {
+        resources[i]->Release();
+    }
 
     return DUPL_RETURN_SUCCESS;
 }
@@ -530,7 +534,7 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
     // Set resources
     UINT Stride = sizeof(VERTEX);
     UINT Offset = 0;
-    FLOAT blendFactor[4] = {0.f, 0.f, 0.f, 0.f};
+    FLOAT blendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
     m_DeviceContext->OMSetBlendState(nullptr, blendFactor, 0xffffffff);
 
     m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
@@ -557,10 +561,17 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
     }
     m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
 
-    DrawPass("Desaturation", FrameDesc.MipLevels, m_SharedSurf, m_SharedSurf, m_multipass0TargetView, FrameDesc.Format);
-  //  DrawPass("Desaturation", FrameDesc.MipLevels, m_multipass0Texture, m_multipass1TargetView, FrameDesc.Format);
-    //DrawPass("SimplifyColors", FrameDesc.MipLevels, m_SharedSurf, m_multipass0TargetView, FrameDesc.Format);
-    DrawPass("Dummy", FrameDesc.MipLevels, m_SharedSurf, m_multipass0Texture, m_RTV, FrameDesc.Format);
+    DrawPass("Desaturation", { m_SharedSurf }, m_multipass0TargetView);
+    DrawPass("Blur", { m_multipass0Texture }, m_multipass1TargetView);
+    DrawPass("EdgesDetection", { m_multipass1Texture }, m_multipass0TargetView);
+    DrawPass("OutlineTweaking", { m_multipass0Texture }, m_RTV);
+
+
+   // DrawPass("SimplifyColors", { m_SharedSurf }, m_multipass0TargetView);
+    //DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_multipass1TargetView);
+
+
+    //DrawPass("Dummy", { m_multipass1Texture }, m_RTV);
 
     VertexBuffer->Release();
     VertexBuffer = nullptr;

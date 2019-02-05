@@ -9,7 +9,7 @@
 Texture2D tx : register(t0);
 SamplerState samLinear : register(s0);
 
-float2 offset = float2(1 / 1920.0f, 1 / 1080.0f);
+static float2 offset = float2(1 / 1920.0f, 1 / 1080.0f);
 
 struct PS_INPUT
 {

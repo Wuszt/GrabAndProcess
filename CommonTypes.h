@@ -44,8 +44,10 @@ const std::unordered_map<std::string, std::wstring> c_pixelShaders
     {"Blur",L"GaussianBlurPP.hlsl"},
     {"Desaturation", L"DesaturationPP.hlsl" },
     {"Dummy", L"DummyPP.hlsl"},
-    {"Sobel", L"SobelPP.hlsl"},
-    {"SimplifyColors", L"SimplifyColorsPP.hlsl"}
+    {"EdgesDetection", L"SobelPP.hlsl"},
+    {"SimplifyColors", L"SimplifyColorsPP.hlsl"},
+    {"AddingOutline", L"AddingOutlinePP.hlsl"},
+    {"OutlineTweaking", L"SobelTweakingPP.hlsl"}
 };
 
 typedef _Return_type_success_(return == DUPL_RETURN_SUCCESS) enum
