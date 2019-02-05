@@ -37,8 +37,10 @@ float4 PS(PS_INPUT input) : SV_Target
     float x = leftUp + 2 * midUp + rightUp - leftDown - 2 * midDown - rightDown;
     float y = leftUp + 2 * leftMid + leftDown - rightUp - 2 * rightMid - rightDown;
 
+    float magnitude = sqrt(x*x + y*y);
+
     x = (x + 1.0f) / 2.0f;
     y = (y + 1.0f) / 2.0f;
 
-    return float4(x, y, 0.0f, 1.0f);
+    return float4(x, y, magnitude, 1.0f);
 }

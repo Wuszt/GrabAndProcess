@@ -49,11 +49,11 @@ float4 PS(PS_INPUT input) : SV_Target
 
     int multipliers[][5] =
     {
-        { 1, 1, 2, 1, 1 },
-        { 1, 2, 4, 2, 1 },
-        { 2, 4, 8, 4, 2 },
-        { 1, 2, 4, 2, 1 },
-        { 1, 1, 2, 1, 1 },
+        { 2, 4, 5, 4, 2 },
+        { 4, 9, 12, 9, 4 },
+        { 5, 12, 15, 12, 5 },
+        { 4, 9, 12, 9, 4 },
+        { 2, 4, 5, 4, 2 },
     };
 
     for (int x = -halfSize; x <= halfSize; ++x)
@@ -66,7 +66,7 @@ float4 PS(PS_INPUT input) : SV_Target
         }
     }
 
-    clr /= 52.0f;
+    clr /= 159.0f;
     clr.a = 1.0f;
     return clr;
 }

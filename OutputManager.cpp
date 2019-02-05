@@ -564,14 +564,14 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
     DrawPass("Desaturation", { m_SharedSurf }, m_multipass0TargetView);
     DrawPass("Blur", { m_multipass0Texture }, m_multipass1TargetView);
     DrawPass("EdgesDetection", { m_multipass1Texture }, m_multipass0TargetView);
-    DrawPass("OutlineTweaking", { m_multipass0Texture }, m_RTV);
+    DrawPass("OutlineTweaking", { m_multipass0Texture }, m_multipass2TargetView);
 
 
-   // DrawPass("SimplifyColors", { m_SharedSurf }, m_multipass0TargetView);
-    //DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_multipass1TargetView);
+    DrawPass("SimplifyColors", { m_SharedSurf }, m_multipass0TargetView);
+    DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_multipass1TargetView);
 
 
-    //DrawPass("Dummy", { m_multipass1Texture }, m_RTV);
+    DrawPass("Dummy", { m_multipass2Texture }, m_RTV);
 
     VertexBuffer->Release();
     VertexBuffer = nullptr;
