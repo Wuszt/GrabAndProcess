@@ -257,11 +257,13 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
     DYNAMIC_WAIT DynamicWait;
 
     Time::Initialize();
+    InputClass::GetSingleton()->Initialize(hInstance, WindowHandle);
 
     int framesCount = 0;
     float time = 0.0f;
     while (WM_QUIT != msg.message)
     {
+        InputClass::GetSingleton()->UpdateInput();
         ++framesCount;
         Time::UpdateTime(false);
 

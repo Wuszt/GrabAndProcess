@@ -11,6 +11,7 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "DirectXCommonClasses.lib")
 
 #include <d3dcompiler.h>
 #include <windows.h>
@@ -22,7 +23,7 @@
 #include <DirectXMath.h>
 #include <iostream>
 #include <unordered_map>
-
+#include "InputClass.h"
 
 #include "DummyPP.h"
 #include "VertexShader.h"

@@ -172,12 +172,12 @@
     <ClCompile Include="DuplicationManager.cpp" />
     <ClCompile Include="OutputManager.cpp" />
     <ClCompile Include="ThreadManager.cpp" />
-    <ClCompile Include="Time.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CommonTypes.h" />
     <ClInclude Include="DisplayManager.h" />
     <ClInclude Include="DuplicationManager.h" />
+    <ClInclude Include="InputClass.h" />
     <ClInclude Include="OutputManager.h" />
     <ClInclude Include="ThreadManager.h" />
     <ClInclude Include="Time.h" />
