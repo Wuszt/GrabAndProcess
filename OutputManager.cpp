@@ -571,7 +571,11 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
 
     DrawPass("Kuwahara", { m_SharedSurf }, m_multipass0TargetView);
     //DrawPass("Blur", { m_multipass1Texture }, m_multipass0TargetView);
-    DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_RTV);
+
+    if (InputClass::GetKey(DIK_Q))
+        DrawPass("Dummy", { m_multipass2Texture }, m_RTV);
+    else
+        DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_RTV);
 
     //DrawPass("Blur", { m_multipass1Texture }, m_RTV);
 
