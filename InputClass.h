@@ -15,33 +15,28 @@ using namespace DirectX;
 class InputClass
 {
 public:
-    bool Initialize(HINSTANCE, HWND);
+    static bool Initialize(HINSTANCE, HWND);
 
-    void UpdateInput();
+    static void UpdateInput();
 
-    bool IsKeyDown(unsigned int);
-    XMFLOAT3 GetMouseDeltaPosition();
-    bool IsMouseButtonDown(unsigned int input);
-    XMFLOAT2 GetMouseCurrentPosition();
-
-    static InputClass* GetSingleton();
+    static bool GetKey(unsigned int);
+    static bool GetKeyDown(unsigned int);
+    static bool GetKeyUp(unsigned int);
+    static XMFLOAT3 GetMouseDeltaPosition();
+    static bool IsMouseButtonDown(unsigned int input);
+    static XMFLOAT2 GetMouseCurrentPosition();
 
 private:
-    InputClass();
-    InputClass(const InputClass&);
-    ~InputClass();
+    static BYTE m_keyboardState[256];
+    static BYTE m_prevKeyboardState[256];
 
-    BYTE m_keyboardState[256];
+    static HWND m_hwnd;
 
-    HWND m_hwnd;
+    static IDirectInputDevice8* m_DIKeyboard;
+    static IDirectInputDevice8* m_DIMouse;
 
-    IDirectInputDevice8* m_DIKeyboard;
-    IDirectInputDevice8* m_DIMouse;
-
-    DIMOUSESTATE m_lastMouseState;
-    LPDIRECTINPUT8 m_directInput;
-
-    static InputClass s_singleton;
+    static DIMOUSESTATE m_lastMouseState;
+    static LPDIRECTINPUT8 m_directInput;
 };
 
 #endif
