@@ -29,24 +29,104 @@ float3 GetDataForPixelWithOffset(float2 mainCoords, float2 off)
     return float3(ExtractXandY(samp), samp.z);
 }
 
-bool Discard(float3 data, float angle, float mainCoords, float2 a0, float2 a1, float2 topOffset0, float2 topOffset1, float2 botOffset0, float2 botOffset1)
+float NonMaximumSuppression(PS_INPUT input)
 {
-    if ((angle >= a0.x && a0.y > angle) || (angle >= a1.x && a1.y > angle))
+    float3 data = GetDataForPixelWithOffset(input.Tex, float2(0, 0));
+
+    float mg = data.z;
+
+    float angle = atan2(data.y, data.x) * 180 / PI;
+
+    return float4(mg, mg, mg, 1.0f);
+
+    //if ((angle >= -22.5f && 22.5f >= angle) || -157.5f >= angle || angle >= 157.5)
+    //{
+    //    if (GetDataForPixelWithOffset(input.Tex, float2(-1, 0)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(1, 0)).z > data.z)
+    //        mg = 0;
+    //}
+    //else if ((angle >= 22.5f && 67.5f >= angle) || (angle >= -157.5f && -112.5f >= angle))
+    //{
+    //    if (GetDataForPixelWithOffset(input.Tex, float2(-1, -1)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(1, 1)).z > data.z)
+    //        mg = 0;
+    //}
+    //else if ((angle >= 67.5f && 112.5f >= angle) || (angle >= -112.5f && -67.5f >= angle))
+    //{
+    //    if (GetDataForPixelWithOffset(input.Tex, float2(0, -1)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(0, 1)).z > data.z)
+    //        mg = 0;
+    //}
+    //else
+    //{
+    //    if (GetDataForPixelWithOffset(input.Tex, float2(1, -1)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(-1, 1)).z > data.z)
+    //        mg = 0;
+    //}
+
+    if ((angle >= 0.0f && 45.0f >= angle) || (angle >= -180.0f && -135.0f >= angle))
     {
-        float top0 = GetDataForPixelWithOffset(mainCoords, topOffset0).z;
-        float top1 = GetDataForPixelWithOffset(mainCoords, topOffset1).z;
+        float top0 = GetDataForPixelWithOffset(input.Tex, float2(1, 0)).z;
+        float top1 = GetDataForPixelWithOffset(input.Tex, float2(1, 1)).z;
 
+        float bot0 = GetDataForPixelWithOffset(input.Tex, float2(-1, 0)).z;
+        float bot1 = GetDataForPixelWithOffset(input.Tex, float2(-1, -1)).z;
 
-        float bot0 = GetDataForPixelWithOffset(mainCoords, botOffset0);
-        float bot1 = GetDataForPixelWithOffset(mainCoords, botOffset1);
+        float x = abs(data.y / data.z);
 
-        float x_est = abs(data.y / data.z);
+        float interpTop = (top1 - top0) * x + top0;
+        float interpBot = (bot1 - bot0) * x + bot0;
 
-        return !(data.z >= ((bot1 - bot0)*x_est + bot0)
-            && data.z >= ((top1 - top0)*x_est + top0));
+        if (interpTop > mg || interpBot > mg)
+            mg = 0.0f;
+    }
+    else if ((angle >= 45.0f && 90.0f >= angle) || (angle >= -135.0f && -90.0f >= angle))
+    {
+        float top0 = GetDataForPixelWithOffset(input.Tex, float2(0, 1)).z;
+        float top1 = GetDataForPixelWithOffset(input.Tex, float2(1, 1)).z;
+
+        float bot0 = GetDataForPixelWithOffset(input.Tex, float2(0, -1)).z;
+        float bot1 = GetDataForPixelWithOffset(input.Tex, float2(-1, -1)).z;
+
+        float x = abs(data.x / data.z);
+
+        float interpTop = (top1 - top0) * x + top0;
+        float interpBot = (bot1 - bot0) * x + bot0;
+
+        if (interpTop > mg || interpBot > mg)
+            mg = 0.0f;
+    }
+    else if ((angle >= 90.0f && 135.0f >= angle) || (angle >= -90.0f && -45.0f >= angle))
+    {
+        float top0 = GetDataForPixelWithOffset(input.Tex, float2(0, 1)).z;
+        float top1 = GetDataForPixelWithOffset(input.Tex, float2(-1, 1)).z;
+
+        float bot0 = GetDataForPixelWithOffset(input.Tex, float2(0, -1)).z;
+        float bot1 = GetDataForPixelWithOffset(input.Tex, float2(1, -1)).z;
+
+        float x = abs(data.x / data.z);
+
+        float interpTop = (top1 - top0) * x + top0;
+        float interpBot = (bot1 - bot0) * x + bot0;
+
+        if (interpTop > mg || interpBot > mg)
+            mg = 0.0f;
+    }
+    else if ((angle >= 135.0f && 180.0f >= angle) || (angle >= -45.0f && 0.0f >= angle))
+    {
+        float top0 = GetDataForPixelWithOffset(input.Tex, float2(-1, 0)).z;
+        float top1 = GetDataForPixelWithOffset(input.Tex, float2(-1, 1)).z;
+
+        float bot0 = GetDataForPixelWithOffset(input.Tex, float2(1, 0)).z;
+        float bot1 = GetDataForPixelWithOffset(input.Tex, float2(1, -1)).z;
+
+        float x = abs(data.y / data.z);
+
+        float interpTop = (top1 - top0) * x + top0;
+        float interpBot = (bot1 - bot0) * x + bot0;
+
+        if (interpTop > mg || interpBot > mg)
+            mg = 0.0f;
     }
 
-    return false;
+
+    return mg;
 }
 
 //--------------------------------------------------------------------------------------
@@ -54,17 +134,12 @@ bool Discard(float3 data, float angle, float mainCoords, float2 a0, float2 a1, f
 //--------------------------------------------------------------------------------------
 float4 PS(PS_INPUT input) : SV_Target
 {
-   float3 data = GetDataForPixelWithOffset(input.Tex, float2(0,0));
+    float e = NonMaximumSuppression(input);
 
-   float mg = data.z;
+    if (e > 0.45f)
+        e = 1.0f;
+    else if(e < 0.3f)
+        e = 0.0f;
 
-   //float angle = atan2(data.y, data.x) * 180 / PI;
-
-   //if (Discard(data, angle, input.Tex, float2(0, 45), float2(-180, -135), float2(1, 0), float2(1, 1), float2(-1, 0), float2(-1, -1))
-   //    || (Discard(data, angle, input.Tex, float2(45, 90), float2(-135, -90), float2(0, 1), float2(1, 1), float2(0, -1), float2(-1, -1)))
-   //    || (Discard(data, angle, input.Tex, float2(90, 135), float2(-90, -45), float2(0, 1), float2(-1, 1), float2(0, -1), float2(1, -1)))
-   //    || (Discard(data, angle, input.Tex, float2(135, 180), float2(-45, 0), float2(-1, 0), float2(-1, 1), float2(1, 0), float2(1, -1))))
-   //    mg = 0;
-
-   return float4(mg, mg, mg, 1.0f);
+return float4(e, e, e, 1.0f);
 }
