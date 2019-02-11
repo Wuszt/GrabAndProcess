@@ -43,9 +43,13 @@ class OUTPUTMANAGER
         DUPL_RETURN DrawMouse(_In_ PTR_INFO* PtrInfo);
         DUPL_RETURN ResizeSwapChain();
 
-        DUPL_RETURN InitializeMultipassResources(RECT * DeskBounds, ID3D11Texture2D ** tex, ID3D11RenderTargetView ** targetView);
+        DUPL_RETURN InitializeMultipassResources();
+
+        DUPL_RETURN InitializeMultipassResource(RECT * DeskBounds, ID3D11Texture2D ** tex, ID3D11RenderTargetView ** targetView);
 
         void CleanPixelShaders();
+
+        void CleanMultipassResources();
 
     // Vars
         IDXGISwapChain1* m_SwapChain;

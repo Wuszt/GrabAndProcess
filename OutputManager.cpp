@@ -167,19 +167,7 @@ DUPL_RETURN OUTPUTMANAGER::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
         return Return;
     }
 
-    Return = InitializeMultipassResources(DeskBounds, &m_multipass0Texture, &m_multipass0TargetView);
-    if (Return != DUPL_RETURN_SUCCESS)
-    {
-        return Return;
-    }
-
-    Return = InitializeMultipassResources(DeskBounds, &m_multipass1Texture, &m_multipass1TargetView);
-    if (Return != DUPL_RETURN_SUCCESS)
-    {
-        return Return;
-    }
-
-    Return = InitializeMultipassResources(DeskBounds, &m_multipass2Texture, &m_multipass2TargetView);
+    Return = InitializeMultipassResources();
     if (Return != DUPL_RETURN_SUCCESS)
     {
         return Return;
@@ -1115,10 +1103,40 @@ DUPL_RETURN OUTPUTMANAGER::ResizeSwapChain()
     // Set new viewport
     SetViewPort(Width, Height);
 
+    InitializeMultipassResources();
+
     return Ret;
 }
 
-DUPL_RETURN OUTPUTMANAGER::InitializeMultipassResources(RECT* DeskBounds, ID3D11Texture2D** tex, ID3D11RenderTargetView** targetView)
+DUPL_RETURN OUTPUTMANAGER::InitializeMultipassResources()
+{
+    CleanMultipassResources();
+
+    RECT WindowRect;
+    GetClientRect(m_WindowHandle, &WindowRect);
+
+    DUPL_RETURN Return = InitializeMultipassResource(&WindowRect, &m_multipass0Texture, &m_multipass0TargetView);
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
+    Return = InitializeMultipassResource(&WindowRect, &m_multipass1Texture, &m_multipass1TargetView);
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
+    Return = InitializeMultipassResource(&WindowRect, &m_multipass2Texture, &m_multipass2TargetView);
+    if (Return != DUPL_RETURN_SUCCESS)
+    {
+        return Return;
+    }
+
+    return DUPL_RETURN_SUCCESS;
+}
+
+DUPL_RETURN OUTPUTMANAGER::InitializeMultipassResource(RECT* DeskBounds, ID3D11Texture2D** tex, ID3D11RenderTargetView** targetView)
 {
     D3D11_TEXTURE2D_DESC textureDesc;
     D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
@@ -1127,7 +1145,7 @@ DUPL_RETURN OUTPUTMANAGER::InitializeMultipassResources(RECT* DeskBounds, ID3D11
     ZeroMemory(&textureDesc, sizeof(textureDesc));
 
     textureDesc.Width = DeskBounds->right - DeskBounds->left;
-    textureDesc.Height = 1017;//DeskBounds->bottom - DeskBounds->top;
+    textureDesc.Height = DeskBounds->bottom - DeskBounds->top;
     textureDesc.MipLevels = 1;
     textureDesc.ArraySize = 1;
     textureDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -1157,6 +1175,33 @@ void OUTPUTMANAGER::CleanPixelShaders()
     m_PixelShaders.clear();
 }
 
+void OUTPUTMANAGER::CleanMultipassResources()
+{
+    if (m_multipass0TargetView)
+    {
+        m_multipass0TargetView->Release();
+        m_multipass0TargetView = nullptr;
+        m_multipass0Texture->Release();
+        m_multipass0Texture = nullptr;
+    }
+
+    if (m_multipass1TargetView)
+    {
+        m_multipass1TargetView->Release();
+        m_multipass1TargetView = nullptr;
+        m_multipass1Texture->Release();
+        m_multipass1Texture = nullptr;
+    }
+
+    if (m_multipass2TargetView)
+    {
+        m_multipass2TargetView->Release();
+        m_multipass2TargetView = nullptr;
+        m_multipass2Texture->Release();
+        m_multipass2Texture = nullptr;
+    }
+}
+
 //
 // Releases all references
 //
@@ -1169,6 +1214,7 @@ void OUTPUTMANAGER::CleanRefs()
     }
 
     CleanPixelShaders();
+    CleanMultipassResources();
 
     if (m_InputLayout)
     {
