@@ -486,7 +486,6 @@ DUPL_RETURN OUTPUTMANAGER::DrawPass(std::string ppName, std::vector<ID3D11Textur
 
     return DUPL_RETURN_SUCCESS;
 }
-
 //
 // Draw frame into backbuffer
 //
@@ -549,23 +548,25 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
     }
     m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
 
-    DrawPass("Desaturation", { m_SharedSurf }, m_multipass0TargetView);
-    DrawPass("Blur", { m_multipass0Texture }, m_multipass1TargetView);
-    DrawPass("EdgesDetection", { m_multipass1Texture }, m_multipass0TargetView);
-    DrawPass("OutlineTweaking", { m_multipass0Texture }, m_multipass2TargetView);
-    //DrawPass("Blur", { m_multipass1Texture }, m_multipass2TargetView);
-    //DrawPass("Dummy", { m_multipass2Texture }, m_multipass1TargetView);
-    //DrawPass("Blur", { m_multipass1Texture }, m_multipass2TargetView);
+    //DrawPass("Desaturation", { m_SharedSurf }, m_multipass0TargetView);
+    //DrawPass("Blur", { m_multipass0Texture }, m_multipass1TargetView);
+    //DrawPass("EdgesDetection", { m_multipass1Texture }, m_multipass0TargetView);
+    //DrawPass("OutlineTweaking", { m_multipass0Texture }, m_multipass2TargetView);
+    ////DrawPass("Blur", { m_multipass1Texture }, m_multipass2TargetView);
+    ////DrawPass("Dummy", { m_multipass2Texture }, m_multipass1TargetView);
+    ////DrawPass("Blur", { m_multipass1Texture }, m_multipass2TargetView);
 
-    DrawPass("Kuwahara", { m_SharedSurf }, m_multipass0TargetView);
-    //DrawPass("Blur", { m_multipass1Texture }, m_multipass0TargetView);
+    //DrawPass("Kuwahara", { m_SharedSurf }, m_multipass0TargetView);
+    ////DrawPass("Blur", { m_multipass1Texture }, m_multipass0TargetView);
 
-    if (InputClass::GetKey(DIK_Q))
-        DrawPass("Dummy", { m_multipass2Texture }, m_RTV);
-    else
-        DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_RTV);
+    //if (InputClass::GetKey(DIK_Q))
+    //    DrawPass("Dummy", { m_multipass2Texture }, m_RTV);
+    //else
+    //    DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_RTV);
 
     //DrawPass("Blur", { m_multipass1Texture }, m_RTV);
+
+    DrawPass("FishEye", { m_SharedSurf }, m_RTV);
 
     VertexBuffer->Release();
     VertexBuffer = nullptr;

@@ -7,9 +7,8 @@
 //----------------------------------------------------------------------
 
 Texture2D tx : register(t0);
+float factor = 1.25f;
 SamplerState samLinear : register(s0);
-
-static float2 offset = float2(1 / 1920.0f , 1 / 1080.0f);
 
 struct PS_INPUT
 {
@@ -17,38 +16,39 @@ struct PS_INPUT
     float2 Tex : TEXCOORD;
 };
 
+float2 GetCenteredUVs(float2 uv)
+{
+    uv -= 0.5f;
+    uv.y *= -1.0f;
+
+    uv.x *= 16.0f / 9.0f;
+
+    return uv;
+}
+
+float2 GetRevertedCenteredUVs(float2 uv)
+{
+    uv.x *= 9.0f / 16.0f;
+    uv.y *= -1.0f;
+    uv += 0.5f;
+
+    return uv;
+}
+
 //--------------------------------------------------------------------------------------
 // Pixel Shader
 //--------------------------------------------------------------------------------------
 float4 PS(PS_INPUT input) : SV_Target
 {
-    //return tx.Sample(samLinear, input.Tex);
+    float2 uv = GetCenteredUVs(input.Tex);
 
-    float4 clr = float4(0.0f,0.0f,0.0f,0.0f);
+    float r = length(uv) * factor;
 
-    int size = 5;
-    int halfSize = size * 0.5f;
+    float theta = atan(r) / r;
 
-    int multipliers[][5] =
-    {
-        { 2, 4, 5, 4, 2 },
-        { 4, 9, 12, 9, 4 },
-        { 5, 12, 15, 12, 5 },
-        { 4, 9, 12, 9, 4 },
-        { 2, 4, 5, 4, 2 },
-    };
+    uv *= theta;
 
-    for (int x = -halfSize; x <= halfSize; ++x)
-    {
-        for (int y = -halfSize; y <= halfSize; ++y)
-        {
-            float4 tmp = tx.Sample(samLinear, input.Tex + float2(x, y) * offset);
+    uv = GetRevertedCenteredUVs(uv);
 
-            clr += multipliers[halfSize + x][halfSize + y] * tmp;
-        }
-    }
-
-    clr /= 159.0f;
-    clr.a = 1.0f;
-    return clr;
+    return tx.Sample(samLinear, uv);
 }

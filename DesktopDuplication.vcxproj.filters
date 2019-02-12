@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <FxCompile Include="VertexShader.hlsl" />
+    <FxCompile Include="AddingOutlinePP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="DesaturationPP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="SimplifyColorsPP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="SobelPP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="SobelTweakingPP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="KuwaharaPP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="GaussianBlurPP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="FishEyeRemoval.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="DummyPP.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="FishEye.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="DisplayManager.cpp" />
+    <ClCompile Include="DuplicationManager.cpp" />
+    <ClCompile Include="OutputManager.cpp" />
+    <ClCompile Include="ThreadManager.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CommonTypes.h" />
+    <ClInclude Include="DisplayManager.h" />
+    <ClInclude Include="DuplicationManager.h" />
+    <ClInclude Include="InputClass.h" />
+    <ClInclude Include="OutputManager.h" />
+    <ClInclude Include="ThreadManager.h" />
+    <ClInclude Include="Time.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="PostProcesses">
+      <UniqueIdentifier>{90de066c-8d6e-494a-88aa-a8c9b0d68dbd}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

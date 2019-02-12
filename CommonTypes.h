@@ -49,7 +49,9 @@ const std::unordered_map<std::string, std::wstring> c_pixelShaders
     {"SimplifyColors", L"SimplifyColorsPP.hlsl"},
     {"AddingOutline", L"AddingOutlinePP.hlsl"},
     {"OutlineTweaking", L"SobelTweakingPP.hlsl"},
-    {"Kuwahara", L"KuwaharaPP.hlsl"}
+    {"Kuwahara", L"KuwaharaPP.hlsl"},
+    {"FishEyeRemoval", L"FishEyeRemoval.hlsl"},
+    {"FishEye", L"FishEye.hlsl"}
 };
 
 typedef _Return_type_success_(return == DUPL_RETURN_SUCCESS) enum
