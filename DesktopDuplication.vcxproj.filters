@@ -39,6 +39,7 @@
     <ClCompile Include="DuplicationManager.cpp" />
     <ClCompile Include="OutputManager.cpp" />
     <ClCompile Include="ThreadManager.cpp" />
+    <ClCompile Include="DebugLogger.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CommonTypes.h" />
@@ -48,6 +49,7 @@
     <ClInclude Include="OutputManager.h" />
     <ClInclude Include="ThreadManager.h" />
     <ClInclude Include="Time.h" />
+    <ClInclude Include="DebugLogger.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="PostProcesses">

@@ -12,6 +12,13 @@
 
 #include "CommonTypes.h"
 #include "warning.h"
+#include "DebugLogger.h"
+
+struct MultipassResource
+{
+    ID3D11Texture2D* Texture;
+    ID3D11RenderTargetView* Target;
+};
 
 //
 // Handles the task of drawing into a window.
@@ -27,6 +34,10 @@ class OUTPUTMANAGER
         void CleanRefs();
         HANDLE GetSharedHandle();
         DUPL_RETURN DrawPass(std::string ppName, std::vector<ID3D11Texture2D*> textures, ID3D11RenderTargetView * targetView);
+        void ProcessEdgeDetection(ID3D11Texture2D * source, ID3D11RenderTargetView * target);
+        void ProcessFishEye(ID3D11Texture2D * source, ID3D11RenderTargetView * target);
+        void ProcessCellShading(ID3D11Texture2D * source, ID3D11RenderTargetView * target);
+        int HandleModeChange();
         void WindowResize();
 
     private:
@@ -45,9 +56,17 @@ class OUTPUTMANAGER
 
         DUPL_RETURN InitializeMultipassResources();
 
+        MultipassResource* CreateMultipassResource();
+
+        MultipassResource* AcquireMultipassResource();
+
+        void ReleaseMultipassResource(MultipassResource* resource);
+
         DUPL_RETURN InitializeMultipassResource(RECT * DeskBounds, ID3D11Texture2D ** tex, ID3D11RenderTargetView ** targetView);
 
         void CleanPixelShaders();
+
+        void CleanMultipassTexturesAndTargets();
 
         void CleanMultipassResources();
 
@@ -68,14 +87,8 @@ class OUTPUTMANAGER
         bool m_NeedsResize;
         DWORD m_OcclusionCookie;
 
-        ID3D11Texture2D* m_multipass0Texture;
-        ID3D11RenderTargetView* m_multipass0TargetView;
-
-        ID3D11Texture2D* m_multipass1Texture;
-        ID3D11RenderTargetView* m_multipass1TargetView;
-
-        ID3D11Texture2D* m_multipass2Texture;
-        ID3D11RenderTargetView* m_multipass2TargetView;
+        std::vector<MultipassResource*> m_resourcesPool;
+        std::vector<MultipassResource*> m_usedResources;
 };
 
 #endif

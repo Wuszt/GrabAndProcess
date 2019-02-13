@@ -486,6 +486,106 @@ DUPL_RETURN OUTPUTMANAGER::DrawPass(std::string ppName, std::vector<ID3D11Textur
 
     return DUPL_RETURN_SUCCESS;
 }
+
+void OUTPUTMANAGER::ProcessEdgeDetection(ID3D11Texture2D* source, ID3D11RenderTargetView* target)
+{
+    auto mr0 = AcquireMultipassResource();
+    auto mr1 = AcquireMultipassResource();
+
+    DrawPass("Desaturation", { source }, mr0->Target);
+    DrawPass("Blur", { mr0->Texture }, mr1->Target);
+    DrawPass("EdgesDetection", { mr1->Texture }, mr0->Target);
+    DrawPass("OutlineTweaking", { mr0->Texture }, target);
+
+    ReleaseMultipassResource(mr0);
+    ReleaseMultipassResource(mr1);
+}
+
+void OUTPUTMANAGER::ProcessFishEye(ID3D11Texture2D* source, ID3D11RenderTargetView* target)
+{
+    static bool removal = false;
+
+    if (InputClass::GetKeyDown(DIK_I))
+    {
+        DebugLogger::ForceFlush();
+        removal = !removal;
+    }
+
+    std::string output = "[I] Invert: ";
+    output += removal ? "TRUE" : "FALSE";
+    DebugLogger::Log(output);
+
+    if (removal)
+        DrawPass("FishEyeRemoval", { source }, target);
+    else
+        DrawPass("FishEye", { source }, target);
+}
+
+void OUTPUTMANAGER::ProcessCellShading(ID3D11Texture2D* source, ID3D11RenderTargetView* target)
+{
+    static int colorsMode = 2;
+
+    if (InputClass::GetKeyDown(DIK_M))
+    {
+        colorsMode = ++colorsMode % 3;
+        DebugLogger::ForceFlush();
+    }
+
+    DebugLogger::Log("[M] ColorsMode (Current: " + std::to_string(colorsMode) + ") 0 - Normal, 1 - SimplifyColors, 2 - Kuwahara");
+
+    auto mr0 = AcquireMultipassResource();
+    auto mr1 = AcquireMultipassResource();
+
+    ProcessEdgeDetection(source, mr1->Target);
+
+    if (colorsMode == 0)
+        DrawPass("Dummy", { source }, mr0->Target);
+    else if (colorsMode == 1)
+        DrawPass("SimplifyColors", { source }, mr0->Target);
+    else if (colorsMode == 2)
+        DrawPass("Kuwahara", { source }, mr0->Target);
+
+    DrawPass("AddingOutline", { mr0->Texture, mr1->Texture }, target);
+
+    ReleaseMultipassResource(mr0);
+    ReleaseMultipassResource(mr1);
+}
+
+int OUTPUTMANAGER::HandleModeChange()
+{
+    static int currentMode = 0;
+
+    int prevMode = currentMode;
+
+    std::string current;
+
+
+    if (InputClass::GetKeyDown(DIK_N))
+        currentMode = 0;
+    else if (InputClass::GetKeyDown(DIK_C))
+        currentMode = 1;
+    else if (InputClass::GetKeyDown(DIK_E))
+        currentMode = 2;
+    else if (InputClass::GetKeyDown(DIK_F))
+        currentMode = 3;
+
+    if (currentMode == 0)
+        current = "None";
+    else if (currentMode == 1)
+        current = "Cell-Shading";
+    else if (currentMode == 2)
+        current = "Edges";
+    else if (currentMode == 3)
+        current = "Fish Eye";
+
+    DebugLogger::Log("PP Mode (Current: " + current + ") [N] None | [C] Cell - Shading | [E] Edges | [F] Fish Eye");
+
+    if (currentMode != prevMode)
+        DebugLogger::ForceFlush();
+
+    return currentMode;
+}
+
 //
 // Draw frame into backbuffer
 //
@@ -548,25 +648,17 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
     }
     m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
 
-    //DrawPass("Desaturation", { m_SharedSurf }, m_multipass0TargetView);
-    //DrawPass("Blur", { m_multipass0Texture }, m_multipass1TargetView);
-    //DrawPass("EdgesDetection", { m_multipass1Texture }, m_multipass0TargetView);
-    //DrawPass("OutlineTweaking", { m_multipass0Texture }, m_multipass2TargetView);
-    ////DrawPass("Blur", { m_multipass1Texture }, m_multipass2TargetView);
-    ////DrawPass("Dummy", { m_multipass2Texture }, m_multipass1TargetView);
-    ////DrawPass("Blur", { m_multipass1Texture }, m_multipass2TargetView);
+    int mode = HandleModeChange();
 
-    //DrawPass("Kuwahara", { m_SharedSurf }, m_multipass0TargetView);
-    ////DrawPass("Blur", { m_multipass1Texture }, m_multipass0TargetView);
+    if (mode == 0)
+        DrawPass("Dummy", { m_SharedSurf }, m_RTV);
+    else if (mode == 1)
+        ProcessCellShading(m_SharedSurf, m_RTV);
+    else if (mode == 2)
+        ProcessEdgeDetection(m_SharedSurf, m_RTV);
+    else if (mode == 3)
+        ProcessFishEye(m_SharedSurf, m_RTV);
 
-    //if (InputClass::GetKey(DIK_Q))
-    //    DrawPass("Dummy", { m_multipass2Texture }, m_RTV);
-    //else
-    //    DrawPass("AddingOutline", { m_multipass0Texture, m_multipass2Texture }, m_RTV);
-
-    //DrawPass("Blur", { m_multipass1Texture }, m_RTV);
-
-    DrawPass("FishEye", { m_SharedSurf }, m_RTV);
 
     VertexBuffer->Release();
     VertexBuffer = nullptr;
@@ -1111,30 +1203,63 @@ DUPL_RETURN OUTPUTMANAGER::ResizeSwapChain()
 
 DUPL_RETURN OUTPUTMANAGER::InitializeMultipassResources()
 {
-    CleanMultipassResources();
+    CleanMultipassTexturesAndTargets();
 
-    RECT WindowRect;
-    GetClientRect(m_WindowHandle, &WindowRect);
+    std::vector<MultipassResource*> tmpVector(m_resourcesPool);
+    tmpVector.insert(tmpVector.end(), m_usedResources.begin(), m_usedResources.end());
 
-    DUPL_RETURN Return = InitializeMultipassResource(&WindowRect, &m_multipass0Texture, &m_multipass0TargetView);
-    if (Return != DUPL_RETURN_SUCCESS)
+    for (int i = 0; i < tmpVector.size(); ++i)
     {
-        return Return;
-    }
-
-    Return = InitializeMultipassResource(&WindowRect, &m_multipass1Texture, &m_multipass1TargetView);
-    if (Return != DUPL_RETURN_SUCCESS)
-    {
-        return Return;
-    }
-
-    Return = InitializeMultipassResource(&WindowRect, &m_multipass2Texture, &m_multipass2TargetView);
-    if (Return != DUPL_RETURN_SUCCESS)
-    {
-        return Return;
+        auto tmpResource = CreateMultipassResource();
+        tmpVector[i]->Target = tmpResource->Target;
+        tmpVector[i]->Texture = tmpResource->Texture;
+        delete tmpResource;
     }
 
     return DUPL_RETURN_SUCCESS;
+}
+
+MultipassResource* OUTPUTMANAGER::CreateMultipassResource()
+{
+    RECT WindowRect;
+    GetClientRect(m_WindowHandle, &WindowRect);
+
+    auto resource = new MultipassResource();
+
+    InitializeMultipassResource(&WindowRect, &resource->Texture, &resource->Target);
+
+    return resource;
+}
+
+MultipassResource* OUTPUTMANAGER::AcquireMultipassResource()
+{
+    if (m_resourcesPool.size() > 0)
+    {
+        auto resource = m_resourcesPool[m_resourcesPool.size() - 1];
+        m_resourcesPool.pop_back();
+        m_usedResources.push_back(resource);
+        return resource;
+    }
+
+    auto resource = CreateMultipassResource();
+    m_usedResources.push_back(resource);
+
+    return resource;
+}
+
+void OUTPUTMANAGER::ReleaseMultipassResource(MultipassResource* resource)
+{
+    for (int i = 0; i < m_usedResources.size(); ++i)
+    {
+        if (m_usedResources.at(i) == resource)
+        {
+            m_usedResources.erase(m_usedResources.begin() + i);
+            m_resourcesPool.push_back(resource);
+            return;
+        }
+    }
+
+    throw std::exception("This resource is released already!");
 }
 
 DUPL_RETURN OUTPUTMANAGER::InitializeMultipassResource(RECT* DeskBounds, ID3D11Texture2D** tex, ID3D11RenderTargetView** targetView)
@@ -1176,31 +1301,37 @@ void OUTPUTMANAGER::CleanPixelShaders()
     m_PixelShaders.clear();
 }
 
+void OUTPUTMANAGER::CleanMultipassTexturesAndTargets()
+{
+    for (int i = 0; i < m_usedResources.size(); ++i)
+    {
+        m_usedResources[i]->Texture->Release();
+        m_usedResources[i]->Target->Release();
+    }
+
+    for (int i = 0; i < m_resourcesPool.size(); ++i)
+    {
+        m_resourcesPool[i]->Target->Release();
+        m_resourcesPool[i]->Texture->Release();
+    }
+}
+
 void OUTPUTMANAGER::CleanMultipassResources()
 {
-    if (m_multipass0TargetView)
+    CleanMultipassTexturesAndTargets();
+
+    for (int i = 0; i < m_usedResources.size(); ++i)
     {
-        m_multipass0TargetView->Release();
-        m_multipass0TargetView = nullptr;
-        m_multipass0Texture->Release();
-        m_multipass0Texture = nullptr;
+        delete m_usedResources[i];
     }
 
-    if (m_multipass1TargetView)
+    for (int i = 0; i < m_resourcesPool.size(); ++i)
     {
-        m_multipass1TargetView->Release();
-        m_multipass1TargetView = nullptr;
-        m_multipass1Texture->Release();
-        m_multipass1Texture = nullptr;
+        delete m_resourcesPool[i];
     }
 
-    if (m_multipass2TargetView)
-    {
-        m_multipass2TargetView->Release();
-        m_multipass2TargetView = nullptr;
-        m_multipass2Texture->Release();
-        m_multipass2Texture = nullptr;
-    }
+    m_usedResources.clear();
+    m_resourcesPool.clear();
 }
 
 //

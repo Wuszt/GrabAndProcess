@@ -12,6 +12,7 @@
 #include "OutputManager.h"
 #include "ThreadManager.h"
 #include "Time.h"
+#include "DebugLogger.h"
 
 #include <stdio.h>
 #include <iostream>
@@ -261,20 +262,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
     int framesCount = 0;
     float time = 0.0f;
+    int lastFPS = 0;
     while (WM_QUIT != msg.message)
     {
-        InputClass::UpdateInput();
-        ++framesCount;
-        Time::UpdateTime(false);
-
-        if ((time += Time::GetDeltaTime()) > 1.0f)
-        {
-            std::cout << (int)(framesCount / time) << std::endl;
-
-            time = 0.0f;
-            framesCount = 0;
-        }
-
         DUPL_RETURN Ret = DUPL_RETURN_SUCCESS;
         if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
@@ -343,7 +333,22 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
             // Nothing else to do, so try to present to write out to window if not occluded
             if (!Occluded)
             {
+                DebugLogger::OnFrameBegin();
+                InputClass::UpdateInput();
+                ++framesCount;
+                Time::UpdateTime(false);
+
+                if ((time += Time::GetDeltaTime()) > 1.0f)
+                {
+                    lastFPS = (int)(framesCount / time);
+                    time = 0.0f;
+                    framesCount = 0;
+                    DebugLogger::ForceFlush();
+                }
+
+                DebugLogger::Log("FPS: " + std::to_string(lastFPS));
                 Ret = OutMgr.UpdateApplicationWindow(ThreadMgr.GetPointerInfo(), &Occluded);
+                DebugLogger::OnFrameEnd();
             }
         }
 

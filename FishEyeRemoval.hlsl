@@ -7,7 +7,6 @@
 //----------------------------------------------------------------------
 
 Texture2D tx : register(t0);
-float factor = 1.25f;
 SamplerState samLinear : register(s0);
 
 struct PS_INPUT
@@ -41,7 +40,7 @@ float2 GetRevertedCenteredUVs(float2 uv)
 float4 PS(PS_INPUT input) : SV_Target
 {
     float2 uv = GetCenteredUVs(input.Tex);
-
+    float factor = 2.25f;
     float r = length(uv) * factor;
 
     float theta = atan(r) / r;
