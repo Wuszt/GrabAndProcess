@@ -13,6 +13,8 @@
 #include "CommonTypes.h"
 #include "warning.h"
 #include "DebugLogger.h"
+#include <sstream>
+#include <iomanip>
 
 struct MultipassResource
 {
@@ -37,6 +39,7 @@ class OUTPUTMANAGER
         void ProcessEdgeDetection(ID3D11Texture2D * source, ID3D11RenderTargetView * target);
         void ProcessFishEye(ID3D11Texture2D * source, ID3D11RenderTargetView * target);
         void ProcessCellShading(ID3D11Texture2D * source, ID3D11RenderTargetView * target);
+        void ProcessTransformation(ID3D11Texture2D * source, ID3D11RenderTargetView * target);
         int HandleModeChange();
         void WindowResize();
 

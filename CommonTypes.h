@@ -24,6 +24,7 @@
 #include <iostream>
 #include <unordered_map>
 #include "InputClass.h"
+#include "Time.h"
 
 #include "DummyPP.h"
 #include "VertexShader.h"
@@ -50,8 +51,8 @@ const std::unordered_map<std::string, std::wstring> c_pixelShaders
     {"AddingOutline", L"AddingOutlinePP.hlsl"},
     {"OutlineTweaking", L"SobelTweakingPP.hlsl"},
     {"Kuwahara", L"KuwaharaPP.hlsl"},
-    {"FishEyeRemoval", L"FishEyeRemoval.hlsl"},
-    {"FishEye", L"FishEye.hlsl"}
+    {"FishEye", L"FishEye.hlsl"},
+    {"Transform", L"TransformPP.hlsl"}
 };
 
 typedef _Return_type_success_(return == DUPL_RETURN_SUCCESS) enum
@@ -135,5 +136,18 @@ typedef struct _VERTEX
     DirectX::XMFLOAT3 Pos;
     DirectX::XMFLOAT2 TexCoord;
 } VERTEX;
+
+struct FishEyeProperties
+{
+    float factor;
+    DirectX::XMFLOAT3 padding;
+};
+
+struct TransformProperties
+{
+    float zoom;
+    DirectX::XMFLOAT2 offset;
+    float padding;
+};
 
 #endif

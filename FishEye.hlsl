@@ -7,8 +7,12 @@
 //----------------------------------------------------------------------
 
 Texture2D tx : register(t0);
-float factor = 0.3f;
 SamplerState samLinear : register(s0);
+
+cbuffer FishEyeProperties
+{
+    float factor;
+};
 
 struct PS_INPUT
 {
@@ -42,7 +46,7 @@ float4 PS(PS_INPUT input) : SV_Target
 {
     float2 uv = GetCenteredUVs(input.Tex);
 
-    uv *= 1.0 + ((0.5 - length(uv)) / 0.5) * 0.3f;
+    uv *= 1.0 + ((0.5 - length(uv)) / 0.5) * factor;
 
     uv = GetRevertedCenteredUVs(uv);
 

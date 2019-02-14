@@ -23,13 +23,13 @@
     <FxCompile Include="GaussianBlurPP.hlsl">
       <Filter>PostProcesses</Filter>
     </FxCompile>
-    <FxCompile Include="FishEyeRemoval.hlsl">
-      <Filter>PostProcesses</Filter>
-    </FxCompile>
     <FxCompile Include="DummyPP.hlsl">
       <Filter>PostProcesses</Filter>
     </FxCompile>
     <FxCompile Include="FishEye.hlsl">
+      <Filter>PostProcesses</Filter>
+    </FxCompile>
+    <FxCompile Include="TransformPP.hlsl">
       <Filter>PostProcesses</Filter>
     </FxCompile>
   </ItemGroup>

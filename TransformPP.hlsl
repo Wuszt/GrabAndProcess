@@ -9,6 +9,12 @@
 Texture2D tx : register(t0);
 SamplerState samLinear : register(s0);
 
+cbuffer TransformProperties
+{
+    float zoom;
+    float2 offset;
+};
+
 struct PS_INPUT
 {
     float4 Pos : SV_POSITION;
@@ -40,12 +46,13 @@ float2 GetRevertedCenteredUVs(float2 uv)
 float4 PS(PS_INPUT input) : SV_Target
 {
     float2 uv = GetCenteredUVs(input.Tex);
-    float factor = 2.25f;
-    float r = length(uv) * factor;
 
-    float theta = atan(r) / r;
+    uv /= 1.0f + zoom;
 
-    uv *= theta;
+    float2 off = offset;
+    off.y = -off.y;
+
+    uv += off;
 
     uv = GetRevertedCenteredUVs(uv);
 

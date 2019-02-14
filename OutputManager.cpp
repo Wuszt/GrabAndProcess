@@ -503,22 +503,62 @@ void OUTPUTMANAGER::ProcessEdgeDetection(ID3D11Texture2D* source, ID3D11RenderTa
 
 void OUTPUTMANAGER::ProcessFishEye(ID3D11Texture2D* source, ID3D11RenderTargetView* target)
 {
-    static bool removal = false;
+    static int invert = 1;
 
     if (InputClass::GetKeyDown(DIK_I))
     {
         DebugLogger::ForceFlush();
-        removal = !removal;
+        invert = -1 * invert;
     }
 
     std::string output = "[I] Invert: ";
-    output += removal ? "TRUE" : "FALSE";
+    output += invert < 0 ? "TRUE" : "FALSE";
     DebugLogger::Log(output);
 
-    if (removal)
-        DrawPass("FishEyeRemoval", { source }, target);
-    else
-        DrawPass("FishEye", { source }, target);
+    static float currentFactor = 0.3f;
+    if (InputClass::GetKey(DIK_P))
+    {
+        currentFactor += Time::GetDeltaTime() * 0.1f;
+        DebugLogger::ForceFlush();
+    }
+    else if (InputClass::GetKey(DIK_O))
+    {
+        currentFactor -= Time::GetDeltaTime() * 0.1f;
+        DebugLogger::ForceFlush();
+    }
+
+    if (currentFactor < 0)
+        currentFactor = 0.0f;
+
+    DebugLogger::Log("[O][P] Current Factor: " + std::to_string((int)(currentFactor * 100)));
+
+    ID3D11Buffer* buffer = nullptr;
+    D3D11_BUFFER_DESC buffDesc = { 0 };
+
+    buffDesc.Usage = D3D11_USAGE_DYNAMIC;
+    buffDesc.ByteWidth = 16;
+    buffDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    buffDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    buffDesc.MiscFlags = 0;
+    buffDesc.StructureByteStride = 0;
+
+    auto hr = m_Device->CreateBuffer(&buffDesc, NULL, &buffer);
+    if (hr != S_OK)
+        throw std::exception("Failed to create constant buffer");
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    FishEyeProperties* dataPtr;
+    hr = m_DeviceContext->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    dataPtr = (FishEyeProperties*)mappedResource.pData;
+    dataPtr->factor = invert * currentFactor;
+
+    m_DeviceContext->Unmap(buffer, 0);
+
+    m_DeviceContext->PSSetConstantBuffers(0, 1, &buffer);
+
+    buffer->Release();
+
+    DrawPass("FishEye", { source }, target);
 }
 
 void OUTPUTMANAGER::ProcessCellShading(ID3D11Texture2D* source, ID3D11RenderTargetView* target)
@@ -549,6 +589,85 @@ void OUTPUTMANAGER::ProcessCellShading(ID3D11Texture2D* source, ID3D11RenderTarg
 
     ReleaseMultipassResource(mr0);
     ReleaseMultipassResource(mr1);
+}
+
+void OUTPUTMANAGER::ProcessTransformation(ID3D11Texture2D* source, ID3D11RenderTargetView* target)
+{
+    static XMFLOAT2 currentOffset;
+    static float zoom = 0.0f;
+
+    XMFLOAT2 prevOffset = currentOffset;
+    float prevZoom = zoom;
+
+    if (InputClass::GetKeyDown(DIK_R))
+    {
+        currentOffset = XMFLOAT2(0.0f, 0.0f);
+        zoom = 0.0f;
+    }
+
+    if (InputClass::GetKey(DIK_LEFTARROW))
+        currentOffset.x -= Time::GetDeltaTime() * 0.1f;
+    else if (InputClass::GetKey(DIK_RIGHTARROW))
+        currentOffset.x += Time::GetDeltaTime() * 0.1f;
+
+    if (InputClass::GetKey(DIK_UPARROW))
+        currentOffset.y -= Time::GetDeltaTime() * 0.1f;
+    else if (InputClass::GetKey(DIK_DOWNARROW))
+        currentOffset.y += Time::GetDeltaTime() * 0.1f;
+
+    if (InputClass::GetKey(DIK_NUMPADMINUS))
+        zoom -= Time::GetDeltaTime() * 0.1f;
+    else if (InputClass::GetKey(DIK_NUMPADPLUS))
+        zoom += Time::GetDeltaTime() * 0.1f;
+
+    if (prevZoom != zoom || prevOffset.x != currentOffset.x || prevOffset.y != currentOffset.y)
+        DebugLogger::ForceFlush();
+
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(2) << currentOffset.x;
+    std::string x = ss.str();
+    ss.str("");
+
+    ss << std::fixed << std::setprecision(2) << currentOffset.y;
+    std::string y = ss.str();
+    ss.str("");
+
+    ss << std::fixed << std::setprecision(2) << zoom;
+    std::string zoomOutput = ss.str();
+    ss.str("");
+
+    DebugLogger::Log("[Arrows] Current Offset: (" + x + "," + y + ")");
+    DebugLogger::Log("[+][-] Current Zoom: " + zoomOutput);
+    DebugLogger::Log("[R] Reset offset and zoom");
+
+    ID3D11Buffer* buffer = nullptr;
+    D3D11_BUFFER_DESC buffDesc = { 0 };
+
+    buffDesc.Usage = D3D11_USAGE_DYNAMIC;
+    buffDesc.ByteWidth = 16;
+    buffDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    buffDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    buffDesc.MiscFlags = 0;
+    buffDesc.StructureByteStride = 0;
+
+    auto hr = m_Device->CreateBuffer(&buffDesc, NULL, &buffer);
+    if (hr != S_OK)
+        throw std::exception("Failed to create constant buffer");
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    TransformProperties* dataPtr;
+    hr = m_DeviceContext->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    dataPtr = (TransformProperties*)mappedResource.pData;
+    dataPtr->zoom = zoom;
+    dataPtr->offset = currentOffset;
+
+    m_DeviceContext->Unmap(buffer, 0);
+
+    m_DeviceContext->PSSetConstantBuffers(0, 1, &buffer);
+
+    buffer->Release();
+
+    DrawPass("Transform", { source }, target);
 }
 
 int OUTPUTMANAGER::HandleModeChange()
@@ -650,15 +769,20 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
 
     int mode = HandleModeChange();
 
-    if (mode == 0)
-        DrawPass("Dummy", { m_SharedSurf }, m_RTV);
-    else if (mode == 1)
-        ProcessCellShading(m_SharedSurf, m_RTV);
-    else if (mode == 2)
-        ProcessEdgeDetection(m_SharedSurf, m_RTV);
-    else if (mode == 3)
-        ProcessFishEye(m_SharedSurf, m_RTV);
+    auto mr = AcquireMultipassResource();
 
+    ProcessTransformation(m_SharedSurf, mr->Target);
+
+    if (mode == 0)
+        DrawPass("Dummy", { mr->Texture }, m_RTV);
+    else if (mode == 1)
+        ProcessCellShading(mr->Texture, m_RTV);
+    else if (mode == 2)
+        ProcessEdgeDetection(mr->Texture, m_RTV);
+    else if (mode == 3)
+        ProcessFishEye(mr->Texture, m_RTV);
+
+    ReleaseMultipassResource(mr);
 
     VertexBuffer->Release();
     VertexBuffer = nullptr;
