@@ -771,16 +771,16 @@ DUPL_RETURN OUTPUTMANAGER::DrawFrame()
 
     auto mr = AcquireMultipassResource();
 
-    ProcessTransformation(m_SharedSurf, mr->Target);
-
     if (mode == 0)
-        DrawPass("Dummy", { mr->Texture }, m_RTV);
+        DrawPass("Dummy", { m_SharedSurf }, mr->Target);
     else if (mode == 1)
-        ProcessCellShading(mr->Texture, m_RTV);
+        ProcessCellShading(m_SharedSurf, mr->Target);
     else if (mode == 2)
-        ProcessEdgeDetection(mr->Texture, m_RTV);
+        ProcessEdgeDetection(m_SharedSurf, mr->Target);
     else if (mode == 3)
-        ProcessFishEye(mr->Texture, m_RTV);
+        ProcessFishEye(m_SharedSurf, mr->Target);
+
+    ProcessTransformation(mr->Texture, m_RTV);
 
     ReleaseMultipassResource(mr);
 
