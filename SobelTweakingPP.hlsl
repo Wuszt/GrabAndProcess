@@ -1,11 +1,3 @@
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved
-//----------------------------------------------------------------------
-
 Texture2D tx : register(t0);
 SamplerState samLinear : register(s0);
 
@@ -38,27 +30,6 @@ float NonMaximumSuppression(PS_INPUT input)
     float angle = atan2(data.y, data.x) * 180 / PI;
 
     return float4(mg, mg, mg, 1.0f);
-
-    //if ((angle >= -22.5f && 22.5f >= angle) || -157.5f >= angle || angle >= 157.5)
-    //{
-    //    if (GetDataForPixelWithOffset(input.Tex, float2(-1, 0)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(1, 0)).z > data.z)
-    //        mg = 0;
-    //}
-    //else if ((angle >= 22.5f && 67.5f >= angle) || (angle >= -157.5f && -112.5f >= angle))
-    //{
-    //    if (GetDataForPixelWithOffset(input.Tex, float2(-1, -1)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(1, 1)).z > data.z)
-    //        mg = 0;
-    //}
-    //else if ((angle >= 67.5f && 112.5f >= angle) || (angle >= -112.5f && -67.5f >= angle))
-    //{
-    //    if (GetDataForPixelWithOffset(input.Tex, float2(0, -1)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(0, 1)).z > data.z)
-    //        mg = 0;
-    //}
-    //else
-    //{
-    //    if (GetDataForPixelWithOffset(input.Tex, float2(1, -1)).z > data.z || GetDataForPixelWithOffset(input.Tex, float2(-1, 1)).z > data.z)
-    //        mg = 0;
-    //}
 
     if ((angle >= 0.0f && 45.0f >= angle) || (angle >= -180.0f && -135.0f >= angle))
     {
@@ -129,9 +100,6 @@ float NonMaximumSuppression(PS_INPUT input)
     return mg;
 }
 
-//--------------------------------------------------------------------------------------
-// Pixel Shader
-//--------------------------------------------------------------------------------------
 float4 PS(PS_INPUT input) : SV_Target
 {
     float e = NonMaximumSuppression(input);

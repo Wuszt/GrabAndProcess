@@ -1,11 +1,3 @@
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved
-//----------------------------------------------------------------------
-
 Texture2D tx : register(t0);
 SamplerState samLinear : register(s0);
 
@@ -33,9 +25,6 @@ float4 MySimplify(float3 clr)
     return float4(clr, 1.0f);
 }
 
-//--------------------------------------------------------------------------------------
-// Pixel Shader
-//--------------------------------------------------------------------------------------
 float4 PS(PS_INPUT input) : SV_Target
 {
     float3 clr = tx.Sample(samLinear, input.Tex).rgb;

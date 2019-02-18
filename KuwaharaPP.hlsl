@@ -1,11 +1,3 @@
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved
-//----------------------------------------------------------------------
-
 Texture2D tx : register(t0);
 SamplerState samLinear : register(s0);
 
@@ -102,9 +94,6 @@ float3 Kuwahara(PS_INPUT input)
     return GetMeanWithSmallestVar(means, vars);
 }
 
-//--------------------------------------------------------------------------------------
-// Pixel Shader
-//--------------------------------------------------------------------------------------
 float4 PS(PS_INPUT input) : SV_Target
 {
     float3 clr = tx.Sample(samLinear, input.Tex).rgb;
