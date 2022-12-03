@@ -1,5 +1,5 @@
 # GrabAndProcess
-It takes one of your screens as an input, performing some post processing in runtime and displaying (yeah, you need at least 2 screens).
+It takes one of your screens as an input, performs some post processing in runtime and displays.
 
 I just learnt about Cell Shading and wanted to implement it in some way.
 
